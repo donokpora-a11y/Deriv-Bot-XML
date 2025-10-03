@@ -1,0 +1,397 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xml xmlns="http://www.w3.org/1999/xhtml" collection="false">
+  <variables>
+    <variable type="" id="J,jD@g8LTQ{PKB)#AX]/">_dig</variable>
+    <variable type="" id="4K.BD_o|P::;GmXVW6XV">_targProf</variable>
+    <variable type="" id="E`VEMT7|/p(s#zAYTn]j">_stopLoss</variable>
+    <variable type="" id="3k_~urW=ahs2Cef8kMM$">_posstake</variable>
+    <variable type="" id="`H(EKTkv)r}m*e+?fOe|">_cyclestake</variable>
+
+    <!-- New variables for martingale and P&L tracking -->
+    <variable type="" id="mg_max">_maxMart</variable>
+    <variable type="" id="mg_count">_martCount</variable>
+    <variable type="" id="cumP">_cumProfit</variable>
+  </variables>
+
+  <!-- TRADE block -->
+  <block type="trade" id="xgH69|xFn9=70w.*3Vo@" collapsed="false" x="0" y="0">
+    <field name="MARKET_LIST">volidx</field>
+    <field name="SUBMARKET_LIST">random_index</field>
+    <field name="SYMBOL_LIST">R_100</field>
+    <field name="TRADETYPECAT_LIST">digits</field>
+    <field name="TRADETYPE_LIST">evenodd</field>
+    <field name="TYPE_LIST">both</field>
+    <field name="CANDLEINTERVAL_LIST">60</field>
+    <field name="TIME_MACHINE_ENABLED">FALSE</field>
+    <field name="RESTARTONERROR">TRUE</field>
+
+    <!-- INITIALIZATION -->
+    <statement name="INITIALIZATION">
+      <block type="text_print" id="init_print">
+        <value name="TEXT">
+          <shadow type="text">
+            <field name="TEXT">EVENODD BREAKER - improved: double-confirm + martingale(2)</field>
+          </shadow>
+        </value>
+        <next>
+          <!-- ask target profit -->
+          <block type="variables_set" id="set_targ">
+            <field name="VAR" id="4K.BD_o|P::;GmXVW6XV" variabletype="">_targProf</field>
+            <value name="VALUE">
+              <block type="text_prompt_ext">
+                <mutation type="NUMBER"></mutation>
+                <field name="TYPE">NUMBER</field>
+                <value name="TEXT">
+                  <shadow type="text"><field name="TEXT">TARGET PROFIT  [BALANCE] :</field></shadow>
+                </value>
+              </block>
+            </value>
+            <next>
+              <!-- ask stop loss -->
+              <block type="variables_set" id="set_sl">
+                <field name="VAR" id="E`VEMT7|/p(s#zAYTn]j" variabletype="">_stopLoss</field>
+                <value name="VALUE">
+                  <block type="text_prompt_ext">
+                    <mutation type="NUMBER"></mutation>
+                    <field name="TYPE">NUMBER</field>
+                    <value name="TEXT">
+                      <shadow type="text"><field name="TEXT">STOP LOSS [BALANCE] :</field></shadow>
+                    </value>
+                  </block>
+                </value>
+                <next>
+                  <!-- ask stake cycle -->
+                  <block type="variables_set" id="set_cycle">
+                    <field name="VAR" id="`H(EKTkv)r}m*e+?fOe|" variabletype="">_cyclestake</field>
+                    <value name="VALUE">
+                      <block type="lists_split">
+                        <mutation mode="SPLIT"></mutation>
+                        <field name="MODE">SPLIT</field>
+                        <value name="INPUT">
+                          <block type="text_prompt_ext">
+                            <mutation type="TEXT"></mutation>
+                            <field name="TYPE">TEXT</field>
+                            <value name="TEXT">
+                              <shadow type="text"><field name="TEXT">LEVEL STAKE : [comma separated: Ex: 0.35,0.41,0.67]</field></shadow>
+                            </value>
+                          </block>
+                        </value>
+                        <value name="DELIM"><shadow type="text"><field name="TEXT">,</field></shadow></value>
+                      </block>
+                    </value>
+                    <next>
+                      <!-- set initial posstake -->
+                      <block type="variables_set" id="set_pos">
+                        <field name="VAR" id="3k_~urW=ahs2Cef8kMM$" variabletype="">_posstake</field>
+                        <value name="VALUE">
+                          <block type="math_number"><field name="NUM">1</field></block>
+                        </value>
+                        <next>
+                          <!-- set martingale variables -->
+                          <block type="variables_set" id="set_maxmg">
+                            <field name="VAR" id="mg_max" variabletype="">_maxMart</field>
+                            <value name="VALUE"><block type="math_number"><field name="NUM">2</field></block></value>
+                            <next>
+                              <block type="variables_set" id="set_mgcount">
+                                <field name="VAR" id="mg_count" variabletype="">_martCount</field>
+                                <value name="VALUE"><block type="math_number"><field name="NUM">0</field></block></value>
+                                <next>
+                                  <block type="variables_set" id="set_cumP">
+                                    <field name="VAR" id="cumP" variabletype="">_cumProfit</field>
+                                    <value name="VALUE"><block type="math_number"><field name="NUM">0</field></block></value>
+                                    <next>
+                                      <block type="notify">
+                                        <field name="NOTIFICATION_TYPE">info</field>
+                                        <field name="NOTIFICATION_SOUND">silent</field>
+                                        <value name="MESSAGE"><shadow type="text"><field name="TEXT">INITIALIZING IMPROVED BOT...</field></shadow></value>
+                                      </block>
+                                    </next>
+                                  </block>
+                                </next>
+                              </block>
+                            </next>
+                          </block>
+                        </next>
+                      </block>
+                    </next>
+                  </block>
+                </next>
+              </block>
+            </next>
+          </block>
+        </next>
+      </block>
+    </statement>
+
+    <!-- SUBMARKET / TRADE OPTIONS -->
+    <statement name="SUBMARKET">
+      <block type="tradeOptions">
+        <field name="DURATIONTYPE_LIST">t</field>
+        <field name="CURRENCY_LIST">USD</field>
+        <value name="DURATION"><shadow type="math_number"><field name="NUM">5</field></shadow></value>
+        <value name="AMOUNT">
+          <!-- stake selected from _cyclestake at index _posstake -->
+          <block type="lists_getIndex">
+            <mutation statement="false" at="true"></mutation>
+            <field name="MODE">GET</field>
+            <field name="WHERE">FROM_START</field>
+            <value name="VALUE"><block type="variables_get"><field name="VAR" id="`H(EKTkv)r}m*e+?fOe|">_cyclestake</field></block></value>
+            <value name="AT"><block type="variables_get"><field name="VAR" id="3k_~urW=ahs2Cef8kMM$">_posstake</field></block></value>
+          </block>
+        </value>
+      </block>
+    </statement>
+
+    <!-- BEFORE_PURCHASE: improved double-confirmation signal and martingale loop trigger -->
+    <statement name="BEFOREPURCHASE">
+      <block type="before_purchase">
+        <statement name="BEFOREPURCHASE_STACK">
+          <!-- 1) compute last digit -->
+          <block type="variables_set">
+            <field name="VAR" id="J,jD@g8LTQ{PKB)#AX]/">_dig</field>
+            <value name="VALUE">
+              <block type="math_round">
+                <field name="OP">ROUNDDOWN</field>
+                <value name="NUM">
+                  <block type="math_modulo">
+                    <value name="DIVIDEND"><block type="tick"/></value>
+                    <value name="DIVISOR"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
+                  </block>
+                </value>
+              </block>
+            </value>
+            <next>
+              <!-- 2) require two-confirmation: compare tick, prev tick, prevPrev tick -->
+              <block type="controls_if">
+                <mutation elseif="1"></mutation>
+
+                <!-- IF0: check "downtrend" double-confirmation: tick < prev AND prev < prevPrev -->
+                <value name="IF0">
+                  <block type="logic_operation">
+                    <field name="OP">AND</field>
+                    <value name="A">
+                      <block type="logic_compare"><field name="OP">LT</field>
+                        <value name="A"><block type="tick"/></value>
+                        <value name="B"><block type="lists_getIndex"><mutation statement="false" at="true"></mutation><field name="MODE">GET</field><field name="WHERE">FROM_END</field><value name="VALUE"><block type="ticks"/></value><value name="AT"><block type="math_number"><field name="NUM">2</field></block></value></block></value>
+                      </block>
+                    </value>
+                    <value name="B">
+                      <block type="logic_compare"><field name="OP">LT</field>
+                        <value name="A"><block type="lists_getIndex"><mutation statement="false" at="true"></mutation><field name="MODE">GET</field><field name="WHERE">FROM_END</field><value name="VALUE"><block type="ticks"/></value><value name="AT"><block type="math_number"><field name="NUM">2</field></block></value></block></value>
+                        <value name="B"><block type="lists_getIndex"><mutation statement="false" at="true"></mutation><field name="MODE">GET</field><field name="WHERE">FROM_END</field><value name="VALUE"><block type="ticks"/></value><value name="AT"><block type="math_number"><field name="NUM">3</field></block></value></block></value>
+                      </block>
+                    </value>
+                  </block>
+                </value>
+
+                <!-- DO0: confirmed downtrend -> consider EVEN purchase -->
+                <statement name="DO0">
+                  <!-- additional safety: avoid entering if last digit equals previous digit (to reduce repeated unpredictable digits) -->
+                  <block type="controls_if">
+                    <value name="IF0">
+                      <block type="logic_compare"><field name="OP">NEQ</field>
+                        <value name="A"><block type="variables_get"><field name="VAR" id="J,jD@g8LTQ{PKB)#AX]/">_dig</field></block></value>
+                        <value name="B"><block type="lists_getIndex"><mutation statement="false" at="true"></mutation><field name="MODE">GET</field><field name="WHERE">FROM_END</field><value name="VALUE"><block type="ticks"/></value><value name="AT"><block type="math_number"><field name="NUM">1</field></block></value></block></value>
+                      </block>
+                    </value>
+                    <statement name="DO0">
+                      <!-- confirm parity is EVEN -->
+                      <block type="math_number_property">
+                        <mutation divisor_input="false"></mutation>
+                        <field name="PROPERTY">EVEN</field>
+                        <value name="NUMBER_TO_CHECK"><block type="variables_get"><field name="VAR" id="J,jD@g8LTQ{PKB)#AX]/">_dig</field></block></value>
+                        <next>
+                          <!-- send notification and start purchase + martingale handler -->
+                          <block type="notify">
+                            <field name="NOTIFICATION_TYPE">error</field>
+                            <field name="NOTIFICATION_SOUND">silent</field>
+                            <value name="MESSAGE"><shadow type="text"><field name="TEXT">CONFIRMED: DOWNTREND -> BUY EVEN</field></shadow></value>
+                            <next>
+                              <!-- purchase & martingale logic: attempt purchase, if loss, increment _martCount and _posstake and retry up to _maxMart -->
+                              <block type="controls_repeat_ext">
+                                <value name="TIMES"><block type="math_number"><field name="NUM">1</field></block></value>
+                                <statement name="DO">
+                                  <block type="purchase">
+                                    <field name="PURCHASE_LIST">DIGITEVEN</field>
+                                    <next>
+                                      <!-- After purchase: use a small wait then check result -->
+                                      <block type="wait">
+                                        <field name="UNIT">TICKS</field>
+                                        <value name="VALUE"><shadow type="math_number"><field name="NUM">1</field></shadow></value>
+                                        <next>
+                                          <!-- check last contract result -->
+                                          <block type="controls_if">
+                                            <value name="IF0">
+                                              <block type="logic_compare"><field name="OP">EQ</field>
+                                                <value name="A"><block type="contract_win"/></value>
+                                                <value name="B"><block type="logic_boolean"><field name="BOOL">TRUE</field></block></value>
+                                              </block>
+                                            </value>
+                                            <statement name="DO0">
+                                              <!-- Win: reset martingale and posstake, add profit to _cumProfit -->
+                                              <block type="variables_set"><field name="VAR" id="mg_count">_martCount</field><value name="VALUE"><block type="math_number"><field name="NUM">0</field></block></value><next>
+                                                <block type="variables_set"><field name="VAR" id="3k_~urW=ahs2Cef8kMM$">_posstake</field><value name="VALUE"><block type="math_number"><field name="NUM">1</field></block></value><next>
+                                                  <block type="variables_set"><field name="VAR" id="cumP">_cumProfit</field>
+                                                    <value name="VALUE"><block type="math_arithmetic"><field name="OP">ADD</field>
+                                                      <value name="A"><block type="variables_get"><field name="VAR" id="cumP">_cumProfit</field></block></value>
+                                                      <value name="B"><block type="contract_payout"/></value>
+                                                    </block></value>
+                                                    <next>
+                                                      <block type="notify"><field name="NOTIFICATION_TYPE">info</field><field name="NOTIFICATION_SOUND">silent</field><value name="MESSAGE"><shadow type="text"><field name="TEXT">TRADE WON — resetting martingale</field></shadow></value></block>
+                                                    </next>
+                                                  </block>
+                                                </next>
+                                              </block>
+                                            </statement>
+                                            <statement name="ELSE">
+                                              <!-- Loss: increment martCount and posstake; if martCount <= maxMart then retry; else reset posstake and stop recovery -->
+                                              <block type="variables_set"><field name="VAR" id="mg_count">_martCount</field>
+                                                <value name="VALUE"><block type="math_arithmetic"><field name="OP">ADD</field>
+                                                  <value name="A"><block type="variables_get"><field name="VAR" id="mg_count">_martCount</field></block></value>
+                                                  <value name="B"><block type="math_number"><field name="NUM">1</field></block></value>
+                                                </block></value>
+                                                <next>
+                                                  <block type="controls_if">
+                                                    <value name="IF0">
+                                                      <block type="logic_compare"><field name="OP">LTE</field>
+                                                        <value name="A"><block type="variables_get"><field name="VAR" id="mg_count">_martCount</field></block></value>
+                                                        <value name="B"><block type="variables_get"><field name="VAR" id="mg_max">_maxMart</field></block></value>
+                                                      </block>
+                                                    </value>
+                                                    <statement name="DO0">
+                                                      <!-- increase stake index (martingale) -->
+                                                      <block type="variables_set"><field name="VAR" id="3k_~urW=ahs2Cef8kMM$">_posstake</field>
+                                                        <value name="VALUE"><block type="math_arithmetic"><field name="OP">ADD</field>
+                                                          <value name="A"><block type="variables_get"><field name="VAR" id="3k_~urW=ahs2Cef8kMM$">_posstake</field></block></value>
+                                                          <value name="B"><block type="math_number"><field name="NUM">1</field></block></value>
+                                                        </block></value>
+                                                        <next>
+                                                          <block type="notify"><field name="NOTIFICATION_TYPE">warning</field><field name="NOTIFICATION_SOUND">silent</field>
+                                                            <value name="MESSAGE"><shadow type="text"><field name="TEXT">TRADE LOST — martingale applied, retrying...</field></shadow></value>
+                                                          </block>
+                                                        </next>
+                                                      </block>
+                                                    </statement>
+                                                    <statement name="ELSE">
+                                                      <block type="notify"><field name="NOTIFICATION_TYPE">error</field><field name="NOTIFICATION_SOUND">silent</field>
+                                                        <value name="MESSAGE"><shadow type="text"><field name="TEXT">LOSS beyond martingale limit — resetting.</field></shadow></value>
+                                                        <next>
+                                                          <!-- reset martingale and posstake -->
+                                                          <block type="variables_set"><field name="VAR" id="mg_count">_martCount</field><value name="VALUE"><block type="math_number"><field name="NUM">0</field></block></value><next>
+                                                            <block type="variables_set"><field name="VAR" id="3k_~urW=ahs2Cef8kMM$">_posstake</field><value name="VALUE"><block type="math_number"><field name="NUM">1</field></block></value></block>
+                                                          </next>
+                                                        </next>
+                                                      </block>
+                                                    </statement>
+                                                  </block>
+                                                </next>
+                                              </block>
+                                            </statement>
+                                          </block>
+                                        </next>
+                                      </block>
+                                    </next>
+                                  </block>
+                                </statement>
+                              </block>
+                            </next>
+                          </block>
+                        </next>
+                      </block>
+                    </statement>
+                    <statement name="ELSE">
+                      <!-- skip if previous digit equals current (safety) -->
+                      <block type="notify"><field name="NOTIFICATION_TYPE">info</field><field name="NOTIFICATION_SOUND">silent</field><value name="MESSAGE"><shadow type="text"><field name="TEXT">Downtrend seen but digits repeat — skipping</field></shadow></value></block>
+                    </statement>
+                  </block>
+                </statement>
+
+                <!-- IF1: uptrend double-confirmation: tick > prev AND prev > prevPrev -->
+                <value name="IF1">
+                  <block type="logic_operation"><field name="OP">AND</field>
+                    <value name="A">
+                      <block type="logic_compare"><field name="OP">GT</field>
+                        <value name="A"><block type="tick"/></value>
+                        <value name="B"><block type="lists_getIndex"><mutation statement="false" at="true"></mutation><field name="MODE">GET</field><field name="WHERE">FROM_END</field><value name="VALUE"><block type="ticks"/></value><value name="AT"><block type="math_number"><field name="NUM">2</field></block></value></block></value>
+                      </block>
+                    </value>
+                    <value name="B">
+                      <block type="logic_compare"><field name="OP">GT</field>
+                        <value name="A"><block type="lists_getIndex"><mutation statement="false" at="true"></mutation><field name="MODE">GET</field><field name="WHERE">FROM_END</field><value name="VALUE"><block type="ticks"/></value><value name="AT"><block type="math_number"><field name="NUM">2</field></block></value></block></value>
+                        <value name="B"><block type="lists_getIndex"><mutation statement="false" at="true"></mutation><field name="MODE">GET</field><field name="WHERE">FROM_END</field><value name="VALUE"><block type="ticks"/></value><value name="AT"><block type="math_number"><field name="NUM">3</field></block></value></block></value>
+                      </block>
+                    </value>
+                  </block>
+                </value>
+
+                <!-- DO1: confirmed uptrend -> consider ODD purchase (same safety checks and martingale logic as above) -->
+                <statement name="DO1">
+                  <block type="controls_if">
+                    <value name="IF0">
+                      <block type="logic_compare"><field name="OP">NEQ</field>
+                        <value name="A"><block type="variables_get"><field name="VAR" id="J,jD@g8LTQ{PKB)#AX]/">_dig</field></block></value>
+                        <value name="B"><block type="lists_getIndex"><mutation statement="false" at="true"></mutation><field name="MODE">GET</field><field name="WHERE">FROM_END</field><value name="VALUE"><block type="ticks"/></value><value name="AT"><block type="math_number"><field name="NUM">1</field></block></value></block></value>
+                      </block>
+                    </value>
+                    <statement name="DO0">
+                      <block type="math_number_property"><mutation divisor_input="false"></mutation>
+                        <field name="PROPERTY">ODD</field>
+                        <value name="NUMBER_TO_CHECK"><block type="variables_get"><field name="VAR" id="J,jD@g8LTQ{PKB)#AX]/">_dig</field></block></value>
+                        <next>
+                          <block type="notify"><field name="NOTIFICATION_TYPE">info</field><field name="NOTIFICATION_SOUND">silent</field><value name="MESSAGE"><shadow type="text"><field name="TEXT">CONFIRMED: UPTREND -> BUY ODD</field></shadow></value><next>
+                            <!-- reuse the same purchase+post-check chain as in DO0 by reusing a "purchase" + wait + check sequence -->
+                            <block type="purchase"><field name="PURCHASE_LIST">DIGITODD</field><next>
+                              <block type="wait"><field name="UNIT">TICKS</field><value name="VALUE"><shadow type="math_number"><field name="NUM">1</field></shadow></value><next>
+                                <block type="controls_if">
+                                  <value name="IF0">
+                                    <block type="logic_compare"><field name="OP">EQ</field><value name="A"><block type="contract_win"/></value><value name="B"><block type="logic_boolean"><field name="BOOL">TRUE</field></block></value></block>
+                                  </value>
+                                  <statement name="DO0">
+                                    <block type="variables_set"><field name="VAR" id="mg_count">_martCount</field><value name="VALUE"><block type="math_number"><field name="NUM">0</field></block></value><next>
+                                      <block type="variables_set"><field name="VAR" id="3k_~urW=ahs2Cef8kMM$">_posstake</field><value name="VALUE"><block type="math_number"><field name="NUM">1</field></block></value><next>
+                                        <block type="variables_set"><field name="VAR" id="cumP">_cumProfit</field><value name="VALUE"><block type="math_arithmetic"><field name="OP">ADD</field><value name="A"><block type="variables_get"><field name="VAR" id="cumP">_cumProfit</field></block></value><value name="B"><block type="contract_payout"/></value></block></value><next>
+                                          <block type="notify"><field name="NOTIFICATION_TYPE">info</field><field name="NOTIFICATION_SOUND">silent</field><value name="MESSAGE"><shadow type="text"><field name="TEXT">TRADE WON — resetting martingale</field></shadow></value></block>
+                                        </next>
+                                      </block>
+                                    </next>
+                                  </statement>
+                                  <statement name="ELSE">
+                                    <block type="variables_set"><field name="VAR" id="mg_count">_martCount</field><value name="VALUE"><block type="math_arithmetic"><field name="OP">ADD</field><value name="A"><block type="variables_get"><field name="VAR" id="mg_count">_martCount</field></block></value><value name="B"><block type="math_number"><field name="NUM">1</field></block></value></block></value><next>
+                                      <block type="controls_if"><value name="IF0"><block type="logic_compare"><field name="OP">LTE</field><value name="A"><block type="variables_get"><field name="VAR" id="mg_count">_martCount</field></block></value><value name="B"><block type="variables_get"><field name="VAR" id="mg_max">_maxMart</field></block></value></block></value>
+                                        <statement name="DO0">
+                                          <block type="variables_set"><field name="VAR" id="3k_~urW=ahs2Cef8kMM$">_posstake</field><value name="VALUE"><block type="math_arithmetic"><field name="OP">ADD</field><value name="A"><block type="variables_get"><field name="VAR" id="3k_~urW=ahs2Cef8kMM$">_posstake</field></block></value><value name="B"><block type="math_number"><field name="NUM">1</field></block></value></block></value><next>
+                                            <block type="notify"><field name="NOTIFICATION_TYPE">warning</field><field name="NOTIFICATION_SOUND">silent</field><value name="MESSAGE"><shadow type="text"><field name="TEXT">TRADE LOST — martingale applied, retrying...</field></shadow></value></block>
+                                          </block>
+                                        </statement>
+                                        <statement name="ELSE">
+                                          <block type="notify"><field name="NOTIFICATION_TYPE">error</field><field name="NOTIFICATION_SOUND">silent</field><value name="MESSAGE"><shadow type="text"><field name="TEXT">LOSS beyond martingale limit — resetting.</field></shadow></value><next>
+                                            <block type="variables_set"><field name="VAR" id="mg_count">_martCount</field><value name="VALUE"><block type="math_number"><field name="NUM">0</field></block></value><next>
+                                              <block type="variables_set"><field name="VAR" id="3k_~urW=ahs2Cef8kMM$">_posstake</field><value name="VALUE"><block type="math_number"><field name="NUM">1</field></block></value></block>
+                                            </next>
+                                          </block>
+                                        </statement>
+                                      </block>
+                                    </next>
+                                  </statement>
+                                </block>
+                              </next>
+                            </block>
+                          </next>
+                        </next>
+                      </block>
+                    </statement>
+                    <statement name="ELSE">
+                      <block type="notify"><field name="NOTIFICATION_TYPE">info</field><field name="NOTIFICATION_SOUND">silent</field><value name="MESSAGE"><shadow type="text"><field name="TEXT">Uptrend seen but digits repeat — skipping</field></shadow></value></block>
+                    </statement>
+                  </block>
+                </statement>
+
+              </block>
+            </next>
+          </block>
+        </statement>
+      </block>
+    </statement>
+
+  </block>
+</xml>
