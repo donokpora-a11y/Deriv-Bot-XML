@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xml xmlns="http://www.w3.org/1999/xhtml" is_dbot="true" collection="false">
+  <variables>
+    <variable type="number" id="Stake">5</variable>
+    <variable type="number" id="RSI">50</variable>
+    <variable type="number" id="Martingale_Factor">2.1</variable>
+    <variable type="number" id="Martingale_Count">0</variable>
+    <variable type="number" id="Max_Martingale">2</variable>
+    <variable type="number" id="RSI_Oversold">30</variable>
+    <variable type="number" id="RSI_Overbought">70</variable>
+  </variables>
+
+  <!-- Trade definition + pre-trade RSI check -->
+  <block type="trade_definition" id="trade_def" x="10" y="10">
+    <statement name="TRADE_OPTIONS">
+      <block type="trade_definition_market">
+        <field name="MARKET_LIST">synthetic_index</field>
+        <field name="SUBMARKET_LIST">random_index</field>
+        <field name="SYMBOL_LIST">R_10</field>
+        <next>
+          <block type="trade_definition_tradetype">
+            <field name="TRADETYPECAT_LIST">callput</field>
+            <field name="TRADETYPE_LIST">callput</field>
+            <next>
+              <block type="trade_definition_candleinterval">
+                <field name="CANDLEINTERVAL_LIST">60</field>
+                <next>
+                  <block type="trade_definition_restartbuysell">
+                    <field name="TIME_MACHINE_ENABLED">false</field>
+                    <next>
+                      <block type="trade_definition_restartonerror">
+                        <field name="RESTARTONERROR">true</field>
+                      </block>
+                    </next>
+                  </block>
+                </next>
+              </block>
+            </next>
+          </block>
+        </next>
+      </block>
+    </statement>
+
+    <!-- Pre-trade: only enter if RSI gives signal -->
+    <statement name="PRE_TRADE_CHECK">
+      <block type="controls_if" id="if_rsi_entry">
+        <mutation else="1"></mutation>
+
+        <!-- IF: RSI <= Oversold -> place CALL -->
+        <value name="IF0">
+          <block type="logic_compare">
+            <field name="OP">LTE</field>
+            <value name="A">
+              <block type="variables_get"><field name="VAR" id="RSI">RSI</field></block>
+            </value>
+            <value name="B">
+              <block type="variables_get"><field name="VAR" id="RSI_Oversold">RSI_Oversold</field></block>
+            </value>
+          </block>
+        </value>
+
+        <statement name="DO0">
+          <!-- Place CALL trade block -->
+          <block type="trade_definition_tradeoptions">
+            <field name="DURATIONTYPE_LIST">t</field>
+            <value name="DURATION">
+              <shadow type="math_number"><field name="NUM">5</field></shadow>
+            </value>
+            <value name="AMOUNT">
+              <block type="variables_get"><field name="VAR" id="Stake">Stake</field></block>
+            </value>
+            <next>
+              <block type="comment">
+                <field name="TEXT">Entering CALL because RSI <= Oversold threshold</field>
+              </block>
+            </next>
+          </block>
+        </statement>
+
+        <statement name="ELSE">
+          <!-- ELSE: check if RSI >= Overbought -> place PUT -->
+          <block type="controls_if">
+            <mutation else="0"></mutation>
+            <value name="IF0">
+              <block type="logic_compare">
+                <field name="OP">GTE</field>
+                <value name="A">
+                  <block type="variables_get"><field name="VAR" id="RSI">RSI</field></block>
+                </value>
+                <value name="B">
+                  <block type="variables_get"><field name="VAR" id="RSI_Overbought">RSI_Overbought</field></block>
+                </value>
+              </block>
+            </value>
+            <statement name="DO0">
+              <!-- Place PUT trade block -->
+              <block type="trade_definition_tradeoptions">
+                <field name="DURATIONTYPE_LIST">t</field>
+                <value name="DURATION">
+                  <shadow type="math_number"><field name="NUM">5</field></shadow>
+                </value>
+                <value name="AMOUNT">
+                  <block type="variables_get"><field name="VAR" id="Stake">Stake</field></block>
+                </value>
+                <next>
+                  <block type="comment">
+                    <field name="TEXT">Entering PUT because RSI >= Overbought threshold</field>
+                  </block>
+                </next>
+              </block>
+            </statement>
+          </block>
+        </statement>
+      </block>
+    </statement>
+
+    <!-- After-purchase stack: reset on win, martingale on loss (with cap) -->
+    <statement name="AFTERPURCHASE_STACK">
+      <block type="controls_if" id="after_purchase_if">
+        <mutation else="1"></mutation>
+
+        <!-- IF trade result is win -->
+        <value name="IF0">
+          <block type="contract_check_result">
+            <field name="CHECK_RESULT">win</field>
+          </block>
+        </value>
+
+        <statement name="DO0">
+          <!-- Reset stake to base and reset martingale count -->
+          <block type="variables_set">
+            <field name="VAR" id="Stake">Stake</field>
+            <value name="VALUE"><block type="math_number"><field name="NUM">5</field></block></value>
+            <next>
+              <block type="variables_set">
+                <field name="VAR" id="Martingale_Count">Martingale_Count</field>
+                <value name="VALUE"><block type="math_number"><field name="NUM">0</field></block></value>
+              </block>
+            </next>
+          </block>
+        </statement>
+
+        <statement name="ELSE">
+          <!-- ELSE: loss or not win -> martingale logic with cap -->
+          <block type="controls_if">
+            <mutation else="1"></mutation>
+            <!-- IF Martingale_Count < Max_Martingale -->
+            <value name="IF0">
+              <block type="logic_compare">
+                <field name="OP">LT</field>
+                <value name="A">
+                  <block type="variables_get"><field name="VAR" id="Martingale_Count">Martingale_Count</field></block>
+                </value>
+                <value name="B">
+                  <block type="variables_get"><field name="VAR" id="Max_Martingale">Max_Martingale</field></block>
+                </value>
+              </block>
+            </value>
+
+            <statement name="DO0">
+              <!-- Multiply stake by martingale factor -->
+              <block type="variables_set">
+                <field name="VAR" id="Stake">Stake</field>
+                <value name="VALUE">
+                  <block type="math_arithmetic">
+                    <field name="OP">MULTIPLY</field>
+                    <value name="A"><block type="variables_get"><field name="VAR" id="Stake">Stake</field></block></value>
+                    <value name="B"><block type="variables_get"><field name="VAR" id="Martingale_Factor">Martingale_Factor</field></block></value>
+                  </block>
+                </value>
+                <next>
+                  <!-- increment martingale count -->
+                  <block type="variables_set">
+                    <field name="VAR" id="Martingale_Count">Martingale_Count</field>
+                    <value name="VALUE">
+                      <block type="math_arithmetic">
+                        <field name="OP">ADD</field>
+                        <value name="A"><block type="variables_get"><field name="VAR" id="Martingale_Count">Martingale_Count</field></block></value>
+                        <value name="B"><block type="math_number"><field name="NUM">1</field></block></value>
+                      </block>
+                    </value>
+                  </block>
+                </next>
+              </block>
+            </statement>
+
+            <statement name="ELSE">
+              <!-- ELSE: reached max martingale -> reset stake and count (stop martingaling for this cycle) -->
+              <block type="variables_set">
+                <field name="VAR" id="Stake">Stake</field>
+                <value name="VALUE"><block type="math_number"><field name="NUM">5</field></block></value>
+                <next>
+                  <block type="variables_set">
+                    <field name="VAR" id="Martingale_Count">Martingale_Count</field>
+                    <value name="VALUE"><block type="math_number"><field name="NUM">0</field></block></value>
+                    <next>
+                      <block type="comment"><field name="TEXT">Max martingale reached — resetting stake to base. Consider pausing or notifying.</field></block>
+                    </next>
+                  </block>
+                </next>
+              </block>
+            </statement>
+          </block>
+        </statement>
+      </block>
+    </statement>
+  </block>
+</xml>
